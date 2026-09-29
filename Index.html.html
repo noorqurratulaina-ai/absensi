@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Absensi QR</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--in:#0d1322;--gh:#1a2238;--gh2:#232d4a;--cam:#070a12;--bg:#0b0f1a;--card:#121828;--line:#1f2940;--txt:#e8ecf5;--mut:#8b96b0;--br:#6366f1;--ok:#10b981;--warn:#f59e0b;--bad:#f43f5e;--blue:#3b82f6}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:radial-gradient(900px 400px at 10% -10%,#1b2250 0,transparent 60%),var(--bg);color:var(--txt);min-height:100vh}
+[data-theme=light]{--in:#f1f4fb;--gh:#e6ebf6;--gh2:#d9e0f0;--cam:#dfe5f2;--bg:#f4f6fb;--card:#fff;--line:#dde3f0;--txt:#182033;--mut:#5f6b85}[data-theme=light] body{background:var(--bg)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px}
+.inp{width:100%;background:var(--in);border:1px solid var(--line);border-radius:12px;padding:.6rem .8rem;font-size:.8rem;color:var(--txt);outline:none}
+.inp:focus{border-color:var(--br)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.6rem 1rem;border-radius:12px;font-weight:700;font-size:.78rem;transition:.15s;cursor:pointer}
+.b-br{background:var(--br);color:#fff}.b-br:hover{background:#4f46e5}
+.b-ok{background:var(--ok);color:#052e22}.b-ok:hover{filter:brightness(1.1)}
+.b-bad{background:var(--bad);color:#fff}
+.b-gh{background:var(--gh);color:var(--txt)}.b-gh:hover{background:var(--gh2)}
+.lbl{font-size:.68rem;font-weight:600;color:var(--mut);display:block;margin-bottom:.25rem}
+.tab{color:var(--mut);font-weight:600;font-size:.8rem;padding:.65rem 1rem;border-radius:12px;white-space:nowrap;flex:1;transition:.15s}
+.tab.on{background:var(--br);color:#fff}
+.pill{padding:.2rem .6rem;border-radius:99px;font-size:.65rem;font-weight:700}
+.laser{position:absolute;left:8%;width:84%;height:3px;background:linear-gradient(90deg,transparent,var(--ok),transparent);box-shadow:0 0 14px var(--ok);animation:l 2s ease-in-out infinite}
+@keyframes l{0%,100%{top:14%}50%{top:84%}}
+#qr-reader{border:none!important}#qr-reader video{width:100%!important;object-fit:cover;border-radius:16px}
+th{position:sticky;top:0}
+@media print{body *{visibility:hidden}#printArea,#printArea *{visibility:visible}#printArea{position:absolute;left:0;top:0;width:100%}}
+</style>
+</head>
+<body class="p-3 sm:p-6">
+<div class="max-w-6xl mx-auto space-y-4">
+ 
+<header class="card p-4 flex flex-wrap items-center justify-between gap-3">
+  <div class="flex items-center gap-3">
+    <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-emerald-400 grid place-items-center text-white"><i class="fa-solid fa-id-badge"></i></div>
+    <div><h1 class="font-extrabold text-lg leading-tight">Absensi QR</h1><p class="text-[11px]" style="color:var(--mut)">Presensi mahasiswa dengan QR &amp; Google Sheets</p></div>
+  </div>
+  <div class="flex items-center gap-3">
+    <button class="btn b-gh !p-2.5" onclick="theme()" title="Tema"><i class="fa-solid fa-circle-half-stroke"></i></button>
+    <span id="syncBadge" class="pill" style="background:var(--gh);color:var(--mut)"><i class="fa-solid fa-cloud"></i> Lokal</span>
+    <div class="text-right"><div id="clock" class="font-mono font-bold text-sm">--:--:--</div><div id="date" class="text-[11px]" style="color:var(--mut)"></div></div>
+    <button class="btn b-br" onclick="openM(true)"><i class="fa-solid fa-user-plus"></i><span class="hidden sm:inline">Tambah Mhs</span></button>
+  </div>
+</header>
+ 
+<nav class="card p-1.5 flex gap-1 overflow-x-auto">
+  <button class="tab on" data-t="scan"><i class="fa-solid fa-camera mr-2"></i>Scan</button>
+  <button class="tab" data-t="rekap"><i class="fa-solid fa-table-list mr-2"></i>Rekap</button>
+  <button class="tab" data-t="ktm"><i class="fa-solid fa-address-card mr-2"></i>KTM &amp; QR</button>
+  <button class="tab" data-t="set"><i class="fa-solid fa-gear mr-2"></i>Pengaturan</button>
+</nav>
+
+<!-- SCAN -->
+<section id="scan" class="pane grid lg:grid-cols-5 gap-4">
+  <div class="card p-4 lg:col-span-3 space-y-3">
+    <div class="flex gap-2 items-center justify-between">
+      <h2 class="font-bold text-sm"><i class="fa-solid fa-qrcode text-indigo-400 mr-2"></i>Pemindai QR</h2>
+      <select id="camSel" class="inp !w-auto max-w-[180px]"><option value="">Kamera...</option></select>
+    </div>
+    
+    <!-- Controls for Session, Deadline, and Default Scan Status -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div>
+        <label class="lbl">Mata kuliah / sesi</label>
+        <input id="sesi" class="inp" placeholder="cth: Basis Data - Pertemuan 5" oninput="localStorage.setItem('ap_sesi',this.value)">
+      </div>
+      <div>
+        <label class="lbl">Batas tepat waktu</label>
+        <input id="batas" type="time" class="inp" oninput="localStorage.setItem('ap_batas',this.value)">
+      </div>
+      <div>
+        <label class="lbl">Mode Status Scan</label>
+        <select id="scanMode" class="inp font-semibold" style="border-color:var(--br)" onchange="localStorage.setItem('ap_scan_mode',this.value)">
+          <option value="AUTO">⚡ Otomatis (Jam)</option>
+          <option value="Hadir">🟢 Hadir</option>
+          <option value="Terlambat">🟠 Terlambat</option>
+          <option value="Izin">🟡 Izin</option>
+          <option value="Sakit">🔵 Sakit</option>
+          <option value="Alpa">🔴 Alpa</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="relative rounded-2xl overflow-hidden min-h-[280px] grid place-items-center" style="background:var(--cam);border:1px solid var(--line)">
+      <div id="qr-reader" class="w-full"></div>
+      <div id="ov" class="hidden absolute inset-0 pointer-events-none"><div class="laser"></div></div>
+      <div id="ph" class="absolute text-center px-6"><i class="fa-solid fa-camera text-4xl text-indigo-400 mb-3"></i><p class="text-xs" style="color:var(--mut)">Tekan "Mulai" untuk mengaktifkan kamera<br>atau unggah gambar QR.</p></div>
+    </div>
+    <div class="flex gap-2">
+      <button id="btnScan" class="btn b-ok flex-1" onclick="toggleScan()"><i class="fa-solid fa-play"></i><span>Mulai Kamera</span></button>
+      <label class="btn b-gh cursor-pointer"><i class="fa-solid fa-image"></i> Upload<input type="file" accept="image/*" class="hidden" onchange="scanFile(this)"></label>
+    </div>
+
+    <!-- Manual Input Form with Status Option -->
+    <form class="flex gap-2" onsubmit="event.preventDefault();onScan($('mNim').value,$('mStatus').value);$('mNim').value=''">
+      <input id="mNim" class="inp font-mono flex-1" placeholder="Atau ketik NIM lalu Enter">
+      <select id="mStatus" class="inp !w-auto max-w-[110px] text-xs font-semibold">
+        <option value="">(Ikut Mode)</option>
+        <option value="Hadir">Hadir</option>
+        <option value="Terlambat">Terlambat</option>
+        <option value="Izin">Izin</option>
+        <option value="Sakit">Sakit</option>
+        <option value="Alpa">Alpa</option>
+      </select>
+      <button class="btn b-gh" title="Submit"><i class="fa-solid fa-keyboard"></i></button>
+    </form>
+  </div>
+
+  <div class="lg:col-span-2 space-y-4">
+    <div class="card p-4 space-y-3">
+      <h3 class="font-bold text-sm">Hasil Scan Terakhir</h3>
+      <div id="res" class="rounded-2xl p-4 text-center min-h-[170px] grid place-items-center" style="background:var(--in);border:1px solid var(--line)">
+        <p class="text-xs" style="color:var(--mut)">Menunggu pemindaian...</p>
+      </div>
+      <!-- Quick Status Switcher for Last Scanned Student -->
+      <div id="quickChangeBox" class="hidden space-y-1.5 pt-2 border-t border-[var(--line)]">
+        <span class="text-[10px] font-semibold text-[var(--mut)] block text-center">Ubah Status Langsung:</span>
+        <div class="grid grid-cols-5 gap-1">
+          <button class="btn b-gh !py-1 !px-1 !text-[10px] hover:bg-emerald-500/20 hover:text-emerald-400" onclick="changeLastStatus('Hadir')">Hadir</button>
+          <button class="btn b-gh !py-1 !px-1 !text-[10px] hover:bg-orange-500/20 hover:text-orange-400" onclick="changeLastStatus('Terlambat')">Telat</button>
+          <button class="btn b-gh !py-1 !px-1 !text-[10px] hover:bg-amber-500/20 hover:text-amber-400" onclick="changeLastStatus('Izin')">Izin</button>
+          <button class="btn b-gh !py-1 !px-1 !text-[10px] hover:bg-blue-500/20 hover:text-blue-400" onclick="changeLastStatus('Sakit')">Sakit</button>
+          <button class="btn b-gh !py-1 !px-1 !text-[10px] hover:bg-rose-500/20 hover:text-rose-400" onclick="changeLastStatus('Alpa')">Alpa</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-5 gap-1.5 text-center">
+      <div class="card p-2"><div class="text-[9px] font-bold text-emerald-400">HADIR</div><div id="s1" class="text-xl font-extrabold text-emerald-400">0</div></div>
+      <div class="card p-2"><div class="text-[9px] font-bold text-orange-400">TELAT</div><div id="s4" class="text-xl font-extrabold text-orange-400">0</div></div>
+      <div class="card p-2"><div class="text-[9px] font-bold text-amber-400">IZIN</div><div id="s2" class="text-xl font-extrabold text-amber-400">0</div></div>
+      <div class="card p-2"><div class="text-[9px] font-bold text-blue-400">SAKIT</div><div id="s5" class="text-xl font-extrabold text-blue-400">0</div></div>
+      <div class="card p-2"><div class="text-[9px] font-bold text-rose-400">BELUM</div><div id="s3" class="text-xl font-extrabold text-rose-400">0</div></div>
+    </div>
+    <div class="card p-4"><h3 class="font-bold text-sm mb-2">Riwayat Hari Ini</h3><div id="log" class="space-y-1.5 max-h-52 overflow-auto text-xs"></div></div>
+  </div>
+</section>
+
+<!-- REKAP -->
+<section id="rekap" class="pane hidden card p-4 space-y-3">
+  <div class="flex flex-wrap gap-2 justify-between items-center">
+    <div><h2 class="font-bold">Rekap Presensi Hari Ini</h2><p class="text-xs" style="color:var(--mut)"><span id="pct">0%</span> mahasiswa hadir dari <span id="tot">0</span> terdaftar</p></div>
+    <div class="flex gap-2"><button class="btn b-gh" onclick="pull(true)"><i class="fa-solid fa-rotate"></i> Sinkron</button><button class="btn b-gh" onclick="exportCSV()"><i class="fa-solid fa-file-csv"></i> CSV</button><button class="btn b-gh" onclick="window.print()"><i class="fa-solid fa-print"></i></button></div>
+  </div>
+  <div id="chart" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+  <div class="grid sm:grid-cols-3 gap-2">
+    <input id="fq" class="inp" placeholder="Cari nama / NIM..." oninput="render()">
+    <select id="fk" class="inp" onchange="render()"><option value="">Semua kelas</option></select>
+    <select id="fs" class="inp" onchange="render()"><option value="">Semua status</option><option>Hadir</option><option>Terlambat</option><option>Izin</option><option>Sakit</option><option>Alpa</option><option>Belum</option></select>
+  </div>
+  <div id="printArea" class="overflow-auto rounded-2xl max-h-[60vh]" style="border:1px solid var(--line)">
+    <table class="w-full text-xs text-left"><thead style="background:var(--in);color:var(--mut)" class="uppercase text-[10px]"><tr><th class="p-3">NIM</th><th class="p-3">Nama</th><th class="p-3">Kelas</th><th class="p-3">Waktu</th><th class="p-3">Status</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody id="tb"></tbody></table>
+  </div>
+</section>
+
+<!-- KTM -->
+<section id="ktm" class="pane hidden grid lg:grid-cols-5 gap-4">
+  <form class="card p-4 lg:col-span-2 space-y-3" onsubmit="event.preventDefault();genCard()">
+    <h2 class="font-bold text-sm">Generator KTM &amp; QR</h2>
+    <div><label class="lbl">Pilih mahasiswa</label><select id="gSel" class="inp" onchange="fillCard()"></select></div>
+    <div class="grid grid-cols-2 gap-2">
+      <div><label class="lbl">NIM</label><input id="gNim" class="inp font-mono" required></div>
+      <div><label class="lbl">Kelas</label><input id="gKls" class="inp" required></div>
+    </div>
+    <div><label class="lbl">Nama</label><input id="gNama" class="inp" required></div>
+    <div><label class="lbl">Prodi</label><input id="gProdi" class="inp" required></div>
+    <button class="btn b-br w-full"><i class="fa-solid fa-wand-magic-sparkles"></i> Buat Kartu</button>
+  </form>
+  <div class="card p-4 lg:col-span-3 grid place-items-center gap-3">
+    <div id="kartu" class="w-full max-w-md rounded-3xl p-5 space-y-3" style="background:linear-gradient(135deg,var(--in),#1e1b4b);border:1px solid #3730a3">
+      <div class="flex justify-between items-center pb-2 border-b border-white/10"><div><div class="text-[9px] font-extrabold tracking-widest text-indigo-300">KARTU TANDA MAHASISWA</div><div class="text-xs font-bold">ABSENSI QR</div></div><i class="fa-solid fa-graduation-cap text-indigo-300 text-xl"></i></div>
+      <div class="flex items-center gap-4">
+        <div class="bg-white p-2 rounded-xl"><div id="qrBox"></div></div>
+        <div class="text-xs space-y-1.5"><div><span class="text-[9px] text-slate-400 block">NIM</span><b id="kNim" class="font-mono text-indigo-300 text-sm">-</b></div><div><span class="text-[9px] text-slate-400 block">NAMA</span><b id="kNama">Pilih mahasiswa</b></div><div><span class="text-[9px] text-slate-400 block">KELAS · PRODI</span><b id="kKls">-</b></div></div>
+      </div>
+    </div>
+    <button class="btn b-ok" onclick="dlQR()"><i class="fa-solid fa-download"></i> Unduh QR</button>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section id="set" class="pane hidden grid lg:grid-cols-2 gap-4">
+  <div class="card p-4 space-y-3">
+    <h2 class="font-bold text-sm">Google Sheets</h2>
+    <div><label class="lbl">URL Web App Apps Script (…/exec)</label><input id="url" class="inp font-mono" placeholder="https://script.google.com/macros/s/AKfycbz7V9-DV4KxXTuhQV6Tc3RKG8uwAJyGpOCqgDwiwIoZ7rhRZ8HXEHc44W9882gG4dbLMg/exec"></div>
+    <div class="flex gap-2"><button class="btn b-br" onclick="saveUrl()"><i class="fa-solid fa-floppy-disk"></i> Simpan &amp; Tes</button><button class="btn b-gh" onclick="pushAll()"><i class="fa-solid fa-cloud-arrow-up"></i> Kirim Data Lokal</button></div>
+    <p class="text-[11px]" style="color:var(--mut)">Data mahasiswa &amp; presensi disimpan di Google Sheets. Tanpa URL, data hanya tersimpan di browser ini.</p>
+  </div>
+  <div class="card p-4 space-y-2 text-xs">
+    <h2 class="font-bold text-sm mb-1">Preferensi</h2>
+    <label class="flex justify-between p-3 rounded-xl" style="background:var(--in)">Bunyi beep<input type="checkbox" id="cBeep" checked class="accent-indigo-500"></label>
+    <label class="flex justify-between p-3 rounded-xl" style="background:var(--in)">Ucapkan nama<input type="checkbox" id="cVoice" checked class="accent-indigo-500"></label>
+    <label class="btn b-gh w-full cursor-pointer mt-2"><i class="fa-solid fa-file-import"></i> Import Mahasiswa (CSV)<input type="file" accept=".csv,.txt" class="hidden" onchange="importCSV(this)"></label>
+    <p class="text-[10px]" style="color:var(--mut)">Format kolom: NIM, Nama, Kelas, Prodi (tanpa/dengan baris judul).</p>
+    <button class="btn b-gh w-full" onclick="backup()"><i class="fa-solid fa-box-archive"></i> Backup Data (JSON)</button>
+    <button class="btn b-bad w-full mt-2" onclick="resetToday()"><i class="fa-solid fa-rotate-left"></i> Reset Presensi Hari Ini</button>
+  </div>
+</section>
+</div>
+
+<!-- MODAL -->
+<div id="modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur grid place-items-center p-4">
+  <form class="card p-5 w-full max-w-sm space-y-3" onsubmit="event.preventDefault();addStudent()">
+    <div class="flex justify-between"><h3 class="font-bold text-sm">Tambah Mahasiswa</h3><button type="button" onclick="openM(false)"><i class="fa-solid fa-xmark"></i></button></div>
+    <div><label class="lbl">NIM</label><input id="aNim" class="inp" required></div>
+    <div><label class="lbl">Nama</label><input id="aNama" class="inp" required></div>
+    <div class="grid grid-cols-2 gap-2"><div><label class="lbl">Kelas</label><input id="aKls" class="inp" required></div><div><label class="lbl">Prodi</label><input id="aProdi" class="inp" required></div></div>
+    <button class="btn b-br w-full">Simpan</button>
+  </form>
+</div>
+<div id="toasts" class="fixed bottom-4 right-4 z-[60] space-y-2"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const DEMO=[{nim:'230101001',nama:'Ahmad Dahlan',kelas:'TI-2A',prodi:'Teknik Informatika'},{nim:'230101002',nama:'Siti Nurhaliza',kelas:'TI-2A',prodi:'Teknik Informatika'},{nim:'230101003',nama:'Budi Santoso',kelas:'TI-2B',prodi:'Sistem Informasi'},{nim:'230101004',nama:'Dewi Lestari',kelas:'TI-2B',prodi:'Sistem Informasi'},{nim:'230101005',nama:'Eko Prasetyo',kelas:'TI-2A',prodi:'Teknik Informatika'}];
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+const S={students:ld('ap_mhs',DEMO),att:ld('ap_att',{}),url:localStorage.getItem('ap_url')||'',cam:null,run:false,last:'',lastT:0,lastNimScanned:''};
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const nowT=()=>new Date().toLocaleTimeString('id-ID',{hour12:false}).replace(/\./g,':');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const save=()=>{localStorage.setItem('ap_mhs',JSON.stringify(S.students));localStorage.setItem('ap_att',JSON.stringify(S.att))};
+const rec=nim=>{const r=S.att[nim];return r&&r.date===today()?r:null};
+
+/* ---------- Google Sheets ---------- */
+function badge(t,c){const b=$('syncBadge');b.innerHTML='<i class="fa-solid fa-cloud"></i> '+t;b.style.color=c;b.style.background=c+'22'}
+async function send(p){if(!S.url)return;try{const r=await fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(p)});const j=await r.json();if(!j.ok)throw j.error;badge('Tersinkron','#10b981')}catch(e){badge('Gagal sinkron','#f43f5e');toast('Sinkron ke Sheets gagal','error')}}
+async function pull(manual){
+  if(!S.url){if(manual)toast('Isi URL Google Sheets di Pengaturan','warning');return}
+  try{badge('Memuat...','#f59e0b');const r=await fetch(S.url+'?date='+today());const j=await r.json();if(!j.ok)throw 0;
+    S.students=j.students;S.att={};j.attendance.forEach(a=>S.att[a.nim]={date:a.date,time:a.time,status:a.status});
+    save();refresh();badge('Tersinkron','#10b981');if(manual)toast('Data dimuat dari Google Sheets','success')
+  }catch{badge('Gagal sinkron','#f43f5e');if(manual)toast('Tidak bisa terhubung. Cek URL &amp; akses deploy "Anyone"','error')}
+}
+async function saveUrl(){S.url=$('url').value.trim();localStorage.setItem('ap_url',S.url);await pull(true)}
+async function pushAll(){if(!S.url)return toast('Isi URL dulu','warning');toast('Mengirim data...','info');
+  for(const s of S.students)await send({action:'addStudent',...s});
+  for(const [nim,a] of Object.entries(S.att))if(a.date===today()){const s=S.students.find(x=>x.nim===nim);if(s)await send({action:'attend',date:a.date,time:a.time,nim,nama:s.nama,kelas:s.kelas,status:a.status,source:'Manual',sesi:$('sesi').value})}
+  toast('Data lokal terkirim','success')}
+
+/* ---------- Presensi Logic ---------- */
+const isLate=()=>{const b=$('batas').value;return !!b&&nowT().slice(0,5)>b};
+
+function mark(nim,status,src){
+  const s=S.students.find(x=>x.nim===nim);if(!s)return;
+  S.att[nim]={date:today(),time:nowT(),status};
+  save();
+  refresh();
+  send({action:'attend',date:today(),time:S.att[nim].time,nim,nama:s.nama,kelas:s.kelas,status,source:src||'Manual',sesi:$('sesi').value});
+}
+
+function onScan(txt, overrideStatus=""){
+  const t=Date.now();
+  if(!txt) return;
+  if(txt===S.last && t-S.lastT<3000) return; // Debounce scanning
+  S.last=txt;
+  S.lastT=t;
+  
+  let nim=txt.trim();
+  try{nim=String(JSON.parse(txt).nim||nim)}catch{}
+  const s=S.students.find(x=>x.nim===nim);
+  
+  if(!s){
+    beep(0);
+    say('NIM tidak terdaftar');
+    result('NIM '+esc(nim),'Tidak terdaftar','#f43f5e','fa-user-xmark','-');
+    $('quickChangeBox').classList.add('hidden');
+    return toast('NIM tidak terdaftar','error');
+  }
+
+  S.lastNimScanned = nim;
+
+  // Determine status to assign
+  let targetStatus = overrideStatus || $('scanMode').value;
+  if(targetStatus === 'AUTO') {
+    targetStatus = isLate() ? 'Terlambat' : 'Hadir';
+  }
+
+  const r=rec(nim);
+  const statusColors = { Hadir: '#10b981', Terlambat: '#fb923c', Izin: '#f59e0b', Sakit: '#3b82f6', Alpa: '#f43f5e' };
+  const color = statusColors[targetStatus] || '#10b981';
+
+  mark(nim, targetStatus, 'QR');
+  beep(targetStatus === 'Alpa' ? 0 : 1);
+  say(s.nama + ', status ' + targetStatus);
+
+  result(esc(s.nama), targetStatus + ' · ' + S.att[nim].time, color, 'fa-user-check', s.kelas + ' · ' + nim);
+  $('quickChangeBox').classList.remove('hidden');
+  toast('Presensi berhasil (' + targetStatus + '): ' + s.nama, 'success');
+}
+
+function changeLastStatus(newStatus) {
+  if(!S.lastNimScanned) return;
+  const s = S.students.find(x=>x.nim === S.lastNimScanned);
+  if(!s) return;
+
+  mark(S.lastNimScanned, newStatus, 'QuickUpdate');
+  const statusColors = { Hadir: '#10b981', Terlambat: '#fb923c', Izin: '#f59e0b', Sakit: '#3b82f6', Alpa: '#f43f5e' };
+  const color = statusColors[newStatus] || '#10b981';
+  
+  result(esc(s.nama), newStatus + ' · ' + S.att[S.lastNimScanned].time, color, 'fa-user-check', s.kelas + ' · ' + S.lastNimScanned);
+  toast('Status ' + s.nama + ' diubah ke: ' + newStatus, 'info');
+}
+
+function result(n,st,c,ic,sub){
+  $('res').innerHTML=`<div class="space-y-2"><div class="w-12 h-12 rounded-2xl grid place-items-center text-xl mx-auto" style="background:${c}22;color:${c}"><i class="fa-solid ${ic}"></i></div><h3 class="font-extrabold text-sm">${n}</h3><p class="text-[11px]" style="color:var(--mut)">${esc(sub)}</p><span class="pill" style="background:${c}22;color:${c}">${esc(st)}</span></div>`;
+}
+
+/* ---------- Scanner Component ---------- */
+async function initCams(){try{const c=await Html5Qrcode.getCameras();$('camSel').innerHTML=c.map((x,i)=>`<option value="${x.id}">${esc(x.label||'Kamera '+(i+1))}</option>`).join('')||'<option value="">Tidak ada kamera</option>'}catch{$('camSel').innerHTML='<option value="">Izin kamera ditolak</option>'}}
+async function toggleScan(){
+  if(S.run){await S.qr.stop().catch(()=>{});S.run=false;ui(false);return}
+  S.qr=new Html5Qrcode('qr-reader');
+  try{await S.qr.start($('camSel').value||{facingMode:'environment'},{fps:12,qrbox:{width:230,height:230}},(txt)=>onScan(txt),()=>{});S.run=true;ui(true)}catch(e){toast('Kamera gagal: '+e,'error')}
+}
+function ui(on){$('ov').classList.toggle('hidden',!on);$('ph').classList.toggle('hidden',on);$('btnScan').className='btn flex-1 '+(on?'b-bad':'b-ok');$('btnScan').innerHTML=on?'<i class="fa-solid fa-stop"></i><span>Hentikan</span>':'<i class="fa-solid fa-play"></i><span>Mulai Kamera</span>'}
+function scanFile(i){if(!i.files[0])return;const q=new Html5Qrcode('qr-reader');q.scanFile(i.files[0],true).then((txt)=>onScan(txt)).catch(()=>toast('QR tidak terbaca','error')).finally(()=>{try{q.clear()}catch{};i.value=''})}
+$('camSel').onchange=async()=>{if(S.run){await toggleScan();toggleScan()}};
+
+/* ---------- Tabel & statistik ---------- */
+function refresh(){
+  const ks=[...new Set(S.students.map(s=>s.kelas))].sort(),cur=$('fk').value;
+  $('fk').innerHTML='<option value="">Semua kelas</option>'+ks.map(k=>`<option ${k===cur?'selected':''}>${esc(k)}</option>`).join('');
+  $('gSel').innerHTML='<option value="">— Manual —</option>'+S.students.map(s=>`<option value="${esc(s.nim)}">${esc(s.nim)} · ${esc(s.nama)}</option>`).join('');
+  render();
+  stats();
+}
+
+function stats(){
+  let h=0,t=0,iz=0,sk=0;
+  const kl={};
+  S.students.forEach(s=>{
+    const r=rec(s.nim),k=kl[s.kelas]??={n:0,h:0};
+    k.n++;
+    if(r?.status==='Hadir'||r?.status==='Terlambat'){k.h++; r.status==='Hadir'?h++:t++}
+    else if(r?.status==='Izin') iz++;
+    else if(r?.status==='Sakit') sk++;
+  });
+  
+  const n=S.students.length;
+  $('s1').textContent=h;
+  $('s4').textContent=t;
+  $('s2').textContent=iz;
+  $('s5').textContent=sk;
+  $('s3').textContent=Math.max(0,n-h-t-iz-sk);
+  $('tot').textContent=n;
+  $('pct').textContent=(n?Math.round((h+t)/n*100):0)+'%';
+
+  $('chart').innerHTML=Object.entries(kl).map(([k,v])=>{const p=Math.round(v.h/v.n*100);return `<div class="p-3 rounded-2xl" style="background:var(--in)"><div class="flex justify-between text-xs font-bold mb-1.5"><span>${esc(k)}</span><span>${v.h}/${v.n} · ${p}%</span></div><div class="h-2 rounded-full" style="background:var(--line)"><div class="h-2 rounded-full bg-emerald-500" style="width:${p}%"></div></div></div>`}).join('');
+  
+  const L=S.students.map(s=>({s,r:rec(s.nim)})).filter(x=>x.r).sort((a,b)=>b.r.time.localeCompare(a.r.time)).slice(0,20);
+  $('log').innerHTML=L.map(({s,r})=>`<div class="flex justify-between p-2 rounded-lg text-xs" style="background:var(--in)"><span><b>${esc(s.nama)}</b> <span style="color:var(--mut)">${esc(s.kelas)}</span></span><span class="font-mono" style="color:${PC[r.status]||'#8b96b0'}">${r.time} · ${r.status}</span></div>`).join('')||'<p style="color:var(--mut)">Belum ada presensi hari ini.</p>'}
+
+const PC={Hadir:'#10b981',Terlambat:'#fb923c',Izin:'#f59e0b',Sakit:'#3b82f6',Alpa:'#f43f5e',Belum:'#8b96b0'};
+
+function render(){
+  const q=$('fq').value.toLowerCase(),k=$('fk').value,f=$('fs').value;
+  const rows=S.students.filter(s=>{const st=rec(s.nim)?.status||'Belum';return(s.nama.toLowerCase().includes(q)||s.nim.includes(q))&&(!k||s.kelas===k)&&(!f||st===f)});
+  $('tb').innerHTML=rows.map(s=>{const r=rec(s.nim),st=r?.status||'Belum',c=PC[st]||'#8b96b0';
+    return `<tr class="border-t" style="border-color:var(--line)"><td class="p-3 font-mono text-indigo-300">${esc(s.nim)}</td><td class="p-3 font-semibold">${esc(s.nama)}</td><td class="p-3">${esc(s.kelas)}<div class="text-[10px]" style="color:var(--mut)">${esc(s.prodi)}</div></td><td class="p-3 font-mono">${r?r.time:'-'}</td><td class="p-3"><span class="pill" style="background:${c}22;color:${c}">${st}</span></td>
+    <td class="p-3"><div class="flex gap-1 justify-center">${['Hadir','Terlambat','Izin','Sakit','Alpa'].map(x=>`<button class="btn b-gh !p-1.5 !text-[10px]" title="${x}" onclick="mark('${esc(s.nim)}','${x}')">${x[0]}</button>`).join('')}<button class="btn b-gh !p-1.5 text-rose-400" onclick="delStudent('${esc(s.nim)}')"><i class="fa-solid fa-trash"></i></button></div></td></tr>`}).join('')||'<tr><td colspan="6" class="p-8 text-center" style="color:var(--mut)">Tidak ada data</td></tr>'}
+
+/* ---------- Management Mahasiswa ---------- */
+function openM(o){$('modal').classList.toggle('hidden',!o)}
+function addStudent(){const s={nim:$('aNim').value.trim(),nama:$('aNama').value.trim(),kelas:$('aKls').value.trim(),prodi:$('aProdi').value.trim()};
+  if(S.students.some(x=>x.nim===s.nim))return toast('NIM sudah ada','error');
+  S.students.push(s);save();refresh();openM(false);send({action:'addStudent',...s});toast('Mahasiswa ditambahkan','success');['aNim','aNama','aKls','aProdi'].forEach(i=>$(i).value='')}
+function delStudent(nim){if(!confirm('Hapus mahasiswa '+nim+'?'))return;S.students=S.students.filter(s=>s.nim!==nim);save();refresh();send({action:'deleteStudent',nim})}
+function resetToday(){if(!confirm('Reset presensi hari ini di perangkat ini?'))return;S.att={};save();refresh();toast('Presensi hari ini direset','info')}
+
+/* ---------- KTM ---------- */
+function fillCard(){const s=S.students.find(x=>x.nim===$('gSel').value);if(!s)return;$('gNim').value=s.nim;$('gNama').value=s.nama;$('gKls').value=s.kelas;$('gProdi').value=s.prodi;genCard()}
+function genCard(){const nim=$('gNim').value.trim();$('qrBox').innerHTML='';new QRCode($('qrBox'),{text:nim,width:120,height:120,correctLevel:QRCode.CorrectLevel.M});
+  $('kNim').textContent=nim;$('kNama').textContent=$('gNama').value;$('kKls').textContent=$('gKls').value+' · '+$('gProdi').value}
+function dlQR(){const c=$('qrBox').querySelector('canvas');if(!c)return toast('Buat kartu dulu','warning');const a=document.createElement('a');a.download='QR-'+$('kNim').textContent+'.png';a.href=c.toDataURL();a.click()}
+
+/* ---------- Preference & Theme ---------- */
+function theme(){const l=document.documentElement.dataset.theme!=='light';document.documentElement.dataset.theme=l?'light':'dark';localStorage.setItem('ap_theme',l?'light':'dark')}
+function importCSV(i){const f=i.files[0];if(!f)return;f.text().then(async t=>{let n=0;
+  for(const ln of t.replace(/^\uFEFF/,'').split(/\r?\n/)){const c=ln.split(/[,;\t]/).map(x=>x.trim().replace(/^"|"$/g,''));
+    if(c.length<2||!c[0]||c[0].toLowerCase()==='nim'||S.students.some(s=>s.nim===c[0]))continue;
+    const s={nim:c[0],nama:c[1],kelas:c[2]||'-',prodi:c[3]||'-'};S.students.push(s);n++;send({action:'addStudent',...s})}
+  save();refresh();toast(n+' mahasiswa diimpor','success');i.value=''})}
+function backup(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({students:S.students,att:S.att},null,1)],{type:'application/json'}));a.download='backup-absensi-qr-'+today()+'.json';a.click()}
+
+/* ---------- Utils ---------- */
+function exportCSV(){const q=v=>'"'+String(v).replace(/"/g,'""')+'"';let c='\uFEFFNIM,Nama,Kelas,Prodi,Waktu,Status\n';
+  S.students.forEach(s=>{const r=rec(s.nim);c+=[s.nim,s.nama,s.kelas,s.prodi,r?r.time:'-',r?r.status:'Belum'].map(q).join(',')+'\n'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:'text/csv'}));a.download='Presensi_'+today()+'.csv';a.click()}
+function beep(ok){if(!$('cBeep').checked)return;try{const x=new AudioContext(),o=x.createOscillator(),g=x.createGain();o.connect(g);g.connect(x.destination);o.frequency.value=ok?660:200;o.type=ok?'sine':'sawtooth';g.gain.setValueAtTime(.2,x.currentTime);g.gain.exponentialRampToValueAtTime(.01,x.currentTime+.3);o.start();o.stop(x.currentTime+.3)}catch{}}
+function say(t){if($('cVoice').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='id-ID';speechSynthesis.speak(u)}}
+function toast(m,t='info'){const c={success:'#10b981',error:'#f43f5e',warning:'#f59e0b',info:'#6366f1'}[t],d=document.createElement('div');d.className='card px-4 py-3 text-xs font-semibold';d.style.borderColor=c;d.style.borderLeft='4px solid '+c;d.innerHTML=m;$('toasts').appendChild(d);setTimeout(()=>d.remove(),3500)}
+
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('hidden',p.id!==b.dataset.t));if(b.dataset.t!=='scan'&&S.run)toggleScan()});
+setInterval(()=>{const n=new Date();$('clock').textContent=n.toLocaleTimeString('id-ID',{hour12:false}).replace(/\./g,':');$('date').textContent=n.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'short',year:'numeric'})},1000);
+
+document.documentElement.dataset.theme=localStorage.getItem('ap_theme')||'dark';
+$('sesi').value=localStorage.getItem('ap_sesi')||'';
+$('batas').value=localStorage.getItem('ap_batas')||'';
+if(localStorage.getItem('ap_scan_mode')) $('scanMode').value=localStorage.getItem('ap_scan_mode');
+$('url').value=S.url;
+
+refresh();
+initCams();
+pull(false);
+</script>
+</body>
+</html>
